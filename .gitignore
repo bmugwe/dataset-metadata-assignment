@@ -1,0 +1,15 @@
+# DHIS2 Platform
+node_modules
+.d2
+src/locales
+build
+
+.vscode
+.vscode/*
+# Logs
+logs
+npm-debug.log*
+
+
+.history
+.history/*

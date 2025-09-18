@@ -1,0 +1,28 @@
+{
+    "version": "0.1.1",
+    "name": "Dataset OU Linker",
+    "description": "Customization for Kenya KHIS Dataset management app",
+    "launch_path": "/index.html",
+    "appType": "APP",
+    "icons": {
+        "16": "/img/icons/mortar-16.png",
+        "48": "/img/icons/mortar-48.png",
+        "128": "/img/icons/mortar-128.png"
+    },
+    "developer": {
+        "name": "bmugwe",
+        "email": "bmugwe@atsl.co.ke"
+    },
+    "default_locale": "en",
+    "activities": {
+        "dhis": {
+            "href": "*",
+            "namespace": "my-namespace"
+        }
+    },
+    "authorities": [
+         "MY_APP_ADD_NEW",
+         "MY_APP_UPDATE",
+         "MY_APP_DELETE"
+    ]
+}
