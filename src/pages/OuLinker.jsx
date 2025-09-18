@@ -149,7 +149,7 @@ const OuLinker = () => {
   }, [ouData]);
 
 
-  console.log({ "Fetched data": data, allPaths, userOrgUnits, ouData, dataSetOrgUnitsFetched, userOrgUnitsFetched });
+  console.log({ "Fetched data": data, allPaths, userOrgUnits, ouData, dataSetOrgUnitsFetched, userOrgUnitsFetched, additions, deletions });
 
   const handleDatasetChange = ({ selected }) => {
     setUserOrgUnitsFetched(false);
@@ -175,14 +175,14 @@ const OuLinker = () => {
       }
 
       // After updating state, send mutation (you may want to debounce or batch this in practice)
-      // mutate({
-      //     additions: checked
-      //         ? [{ id }, ...additions.filter(ou => ou.id !== id)]
-      //         : additions.filter(ou => ou.id !== id),
-      //     deletions: !checked
-      //         ? [{ id }, ...deletions.filter(ou => ou.id !== id)]
-      //         : deletions.filter(ou => ou.id !== id),
-      // })
+      mutate({
+          additions: checked
+              ? [{ id }, ...additions.filter(ou => ou.id !== id)]
+              : additions.filter(ou => ou.id !== id),
+          deletions: !checked
+              ? [{ id }, ...deletions.filter(ou => ou.id !== id)]
+              : deletions.filter(ou => ou.id !== id),
+      })
   }
 
   return (

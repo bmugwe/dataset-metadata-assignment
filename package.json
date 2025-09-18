@@ -1,7 +1,7 @@
 {
-  "name": "entomology",
+  "name": "DHIS2-Dataset-Metadata-Assignment",
   "version": "1.0.1",
-  "description": "App includes a custom landing page, a search functionality for entomology data, and a data grid to display entomology records. and a module to transfer from one organization unit to another.",
+  "description": "A DHIS2 app for assigning metadata to datasets",
   "author": "@MoH DHI",
   "license": "BSD-3-Clause",
   "private": true,
