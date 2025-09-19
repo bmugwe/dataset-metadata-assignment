@@ -1,304 +1,212 @@
 import React, { useState, useEffect } from "react";
 import {
-  TextField,
-  Select,
-  MenuItem,
-  Box,
-  CircularProgress,
-  Typography,
-  Grid2 as Grid,
-  Paper,
+    Box,
+    CircularProgress,
+    Typography,
+    Grid,
+    Paper,
 } from "@mui/material";
-import { DataGrid } from "@mui/x-data-grid";
-import { BrowserRouter } from "react-router-dom";
 import {
-  SingleSelect,
-  SingleSelectOption,
-  OrganisationUnitTree,
-  OrganisationUnitTreeRootLoading,
-  OrganisationUnitTreeRootError,
-  Button,
+    SingleSelect,
+    SingleSelectOption,
+    OrganisationUnitTree,
+    OrganisationUnitTreeRootLoading,
+    Button,
 } from "@dhis2/ui";
 import { useDataQuery, useDataMutation } from "@dhis2/app-runtime";
 
-// Define the GraphQL or REST query to fetch data
+// Queries and mutation as per DHIS2 docs
 const query = {
-  me: {
-    resource: "me",
-    params: {
-      fields: ["id", "name", "email", "organisationUnits[id,name,level,path]"],
+    me: {
+        resource: "me",
+        params: {
+            fields: ["id", "name", "email", "organisationUnits[id,name,level,path]"],
+        },
     },
-  },
-  // Uncomment and adjust as needed
-  // program_data: {
-  //   resource: 'sqlViews/tEswW8DtwF0/data',
-  //   params: ({ vars, programid }) => ({
-  //     var: `va_r:${vars}`,
-  //   }),
-  // },
-  datasets: {
-    resource: "dataSets",
-    params: {
-      fields: ["id", "displayName", "code"],
-      paging: "false",
-    },
-  }
-  // organisationUnits: {
-  //   resource: "organisationUnits",
-  //   params: {
-  //     // nested children up to needed depth
-  //     fields: "id,displayName,path,level,children[id,displayName,path]",
-  //     paging: false,
-  //     //   level: 1,
-  //   },
-  // },
+    datasets: {
+        resource: "dataSets",
+        params: {
+            fields: ["id", "displayName", "code"],
+            paging: "false",
+        },
+    }
 };
 
+const orgUnitQuery = {
+    organisationUnits: {
+        resource: "dataSets",
+        id: ({ id }) => id,
+        params: {
+            fields: "id,path,displayName,organisationUnits[id,path,displayName,level]",
+            paging: false,
+        },
+    },
+};
 
 const mutation = {
     resource: 'dataSets/KAZuvG5qU7Y/organisationUnits',
-    type: 'create', // POST
+    type: 'create',
     data: ({ additions, deletions }) => ({
         additions,
         deletions,
     }),
-}
+};
 
-
-// HfVjCurKxh2
 const OuLinker = () => {
-  const ke_uid = ["HfVjCurKxh2"]; // Kenya HfVjCurKxh2
-  const [orgUnitRoots, setOrgUnitRoots] = useState(["HfVjCurKxh2"]); // default to Kenya
+    const [selectedDataSet, setSelectedDataSet] = useState("");
+    const [selectedDataSetName, setSelectedDataSetName] = useState("");
+    const [additions, setAdditions] = useState([]);
+    const [deletions, setDeletions] = useState([]);
+    const [dataSetOrgUnitsFetched, setDataSetOrgUnitsFetched] = useState([]);
+    const [userOrgUnitsFetched, setUserOrgUnitsFetched] = useState(false);
 
-  const [selectedOption, setSelectedOption] = useState("GNIPmRNe57d");
-  const [inputText, setInputText] = useState("");
+    // Fetch user and datasets
+    const { data, error, loading } = useDataQuery(query);
 
-  const [datasets, setDatasets] = useState([]);
-  const [selectedDataSets, setSelectedDataSets] = useState("");
-  const [selectedDataSetName, setSelectedDataSetName] = useState("");
+    // Fetch org units for selected dataset
+    const {
+        data: ouData,
+        loading: ouLoading,
+        refetch: ouRefetch,
+    } = useDataQuery(orgUnitQuery, {
+        lazy: true,
+        variables: { id: selectedDataSet }
+    });
 
-  const [userOrgUnitsFetched, setUserOrgUnitsFetched] = useState(false);
-  const [userOrgUnits, setUserOrgUnits] = useState([]);
+    // Mutation for saving changes
+    const [mutate, { loading: saving }] = useDataMutation(mutation);
 
-  const [dataSetOrgUnitsFetched, setDataSetOrgUnitsFetched] = useState([]);
+    // Update datasets and org units when data changes
+    useEffect(() => {
+        if (data && selectedDataSet) {
+            ouRefetch({ id: selectedDataSet });
+        }
+        setUserOrgUnitsFetched(true);
+    }, [data, selectedDataSet, ouRefetch]);
 
-  const [additions, setAdditions] = useState([]);
-  const [deletions, setDeletions] = useState([]);
+    // Update selected org units when ouData changes
+    useEffect(() => {
+        if (ouData) {
+            const ous = ouData?.organisationUnits?.organisationUnits || [];
+            setDataSetOrgUnitsFetched(ous.map((ou) => ou.path));
+        } else {
+            setDataSetOrgUnitsFetched([]);
+        }
+    }, [ouData]);
 
-  // Fetch data using useDataQuery
-  const { data, error, loading, refetch } = useDataQuery(query, {
-    variables: {
-      vars: inputText === "" ? "x" : inputText,
-      programid: selectedOption,
-    },
-  });
+    // Handle dataset selection
+    const handleDatasetChange = ({ selected }) => {
+        setSelectedDataSet(selected);
+        const selectedDataset = (data?.datasets?.dataSets || []).find(ds => ds.id === selected);
+        setSelectedDataSetName(selectedDataset ? selectedDataset.displayName : "");
+        setAdditions([]);
+        setDeletions([]);
+    };
 
-  const allPaths = [];
-  // Update state when data changes
-  useEffect(() => {
-    if (data) {
-      // Map datasets to { value, label } for SingleSelect
-      setDatasets(
-        (data?.datasets?.dataSets || []).map((ds) => ({
-          value: ds.id,
-          label: ds.displayName,
-        }))
-      );
+    // Handle org unit selection/deselection
+    const handleOrgUnitChange = ({ id, checked }) => {
+        if (checked) {
+            setAdditions(prev => prev.some(ou => ou.id === id) ? prev : [...prev, { id }]);
+            setDeletions(prev => prev.filter(ou => ou.id !== id));
+        } else {
+            setDeletions(prev => prev.some(ou => ou.id === id) ? prev : [...prev, { id }]);
+            setAdditions(prev => prev.filter(ou => ou.id !== id));
+        }
+    };
 
-      if (ke_uid !== userOrgUnits) {
-        // setOrgUnitRoots(userOrgUnits)
-        console.log("User OU changed, should refetch tree now");
-        setOrgUnitRoots(userOrgUnits || ke_uid);
-        ouRefetch();
-      }
-      setUserOrgUnitsFetched(true);
-    }
-  }, [data]);
+    // Save changes
+    const handleSave = async () => {
+        await mutate({ additions, deletions }).then(() => {
+            alert("Changes saved successfully");
+        }).catch(err => {
+            alert("Error saving changes: " + err.message);
+        });
+        setAdditions([]);
+        setDeletions([]);
+        if (selectedDataSet) {
+            ouRefetch({ id: selectedDataSet });
+        }
+    };
 
-  // create a second useDataQuery to fetch org units of the selected dataset
-  const {
-    data: ouData,
-    error: ouError,
-    loading: ouLoading,
-    refetch: ouRefetch,
-  } = useDataQuery(
-    {
-      organisationUnits: {
-        resource: `dataSets`,
-        id: ({ id }) => id,
-        params: {
-          fields: "id,path,displayName,organisationUnits[id,path,displayName,level]",
-          paging: false,
-        },
-      },
-    },
-    {
-      lazy: true,
-      variables: {id : selectedDataSets }
-    },
-  );
-
-  useEffect(() => {
-    if (ouData) {
-      const ous = ouData?.organisationUnits?.organisationUnits || [];
-      setDataSetOrgUnitsFetched(ous.map((ou) => ou.path));
-    } else {
-      setDataSetOrgUnitsFetched([]);
-    }
-    setUserOrgUnitsFetched(true);
-  }, [ouData]);
-
-
-  console.log({ "Fetched data": data, allPaths, userOrgUnits, ouData, dataSetOrgUnitsFetched, userOrgUnitsFetched, additions, deletions });
-
-  const handleDatasetChange = ({ selected }) => {
-    setUserOrgUnitsFetched(false);
-    setSelectedDataSets(selected);
-    ouRefetch({ id: selectedDataSets});
-
-
-    const selectedDataset = datasets.find((ds) => ds.value === selected);
-    setSelectedDataSetName(selectedDataset ? selectedDataset.label : "");
-  };
-
- const [mutate] = useDataMutation(mutation)
-
-  const handleOrgUnitChange = ({ id, checked }) => {
-      if (checked) {
-          // Add to additions, remove from deletions
-          setAdditions(prev => prev.some(ou => ou.id === id) ? prev : [...prev, { id }])
-          setDeletions(prev => prev.filter(ou => ou.id !== id))
-      } else {
-          // Add to deletions, remove from additions
-          setDeletions(prev => prev.some(ou => ou.id === id) ? prev : [...prev, { id }])
-          setAdditions(prev => prev.filter(ou => ou.id !== id))
-      }
-
-      // After updating state, send mutation (you may want to debounce or batch this in practice)
-      mutate({
-          additions: checked
-              ? [{ id }, ...additions.filter(ou => ou.id !== id)]
-              : additions.filter(ou => ou.id !== id),
-          deletions: !checked
-              ? [{ id }, ...deletions.filter(ou => ou.id !== id)]
-              : deletions.filter(ou => ou.id !== id),
-      })
-  }
-
-  return (
-    <BrowserRouter>
-      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 3 }}>
-        <Box
-          sx={{
-            flex: 1,
-            height: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "left",
-          }}
-        >
-          <h4> {datasets.length} Datasets available: </h4>
-          <br />
-          <SingleSelect
-            selected={selectedDataSets}
-            onChange={handleDatasetChange}
-            placeholder="Select a Dataset"
-            filterable
-            clearable
-            regular
-            style={{ width: "300px" }}
-            inputWidth="300px"
-          >
-            {datasets.map((opt) => (
-              <SingleSelectOption
-                key={opt.value}
-                value={opt.value}
-                label={opt.label}
-              />
-            ))}
-          </SingleSelect>
-        </Box>
-        <Box
-          sx={{
-            flex: 1,
-            height: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "left",
-          }}
-        ></Box>
-      </Box>
-
-      {error && (
-        <Box sx={{ textAlign: "center", marginTop: 2 }}>
-          <Typography color="error">Error: {error.message}</Typography>
-        </Box>
-      )}
-      {loading ? (
-        <Box sx={{ textAlign: "center", marginTop: 2 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <>
-          <Grid container spacing={2} maxHeight={300} sx={{ marginTop: 1 }}>
-            <Grid size={4}>
-              <h3>Organisation Unit Tree</h3>
-              {/* <hr /> */}
+    // UI
+    return (
+        <Box sx={{ p: 3 }}>
+            <Grid container spacing={3}>
+                <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 2 }}>
+                        <Typography variant="h6">Select Dataset</Typography>
+                        {loading ? (
+                            <CircularProgress />
+                        ) : (
+                            <SingleSelect
+                                selected={selectedDataSet}
+                                onChange={handleDatasetChange}
+                                placeholder="Select a Dataset"
+                                filterable
+                                clearable
+                                style={{ width: "100%" }}
+                            >
+                                {(data?.datasets?.dataSets || []).map(ds => (
+                                    <SingleSelectOption
+                                        key={ds.id}
+                                        value={ds.id}
+                                        label={ds.displayName}
+                                    />
+                                ))}
+                            </SingleSelect>
+                        )}
+                    </Paper>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 2, height: 400, overflow: "auto" }}>
+                        <Typography variant="h6">Organisation Unit Tree</Typography>
+                        {userOrgUnitsFetched && data?.me?.organisationUnits ? (
+                            ouLoading ? (
+                                <OrganisationUnitTreeRootLoading />
+                            ) : (
+                                <OrganisationUnitTree
+                                    roots={data.me.organisationUnits.map(ou => ou.id)}
+                                    onChange={handleOrgUnitChange}
+                                    selectable
+                                    filterable
+                                    disableSelection={false}
+                                    selected={dataSetOrgUnitsFetched}
+                                />
+                            )
+                        ) : (
+                            <OrganisationUnitTreeRootLoading />
+                        )}
+                    </Paper>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 2, height: 400 }}>
+                        <Typography variant="h6" gutterBottom>
+                            Summary
+                        </Typography>
+                        <Typography>Dataset: <b>{selectedDataSetName || "None selected"}</b></Typography>
+                        <Typography>Org Units Linked: <b>{dataSetOrgUnitsFetched.length}</b></Typography>
+                        <Typography color="green">Additions: <b>{additions.length}</b></Typography>
+                        <Typography color="red">Deletions: <b>{deletions.length}</b></Typography>
+                        <Box sx={{ mt: 2 }}>
+                            <Button
+                                primary
+                                disabled={additions.length === 0 && deletions.length === 0}
+                                onClick={handleSave}
+                                loading={saving}
+                            >
+                                Save Changes
+                            </Button>
+                        </Box>
+                    </Paper>
+                </Grid>
             </Grid>
-            <Grid size={4}></Grid>
-            <Grid size={4}></Grid>
-          </Grid>
-
-          <Grid container spacing={4} maxHeight={300} sx={{ marginTop: 1 }}>
-            <Grid size={4} sx={{ height: 300, overflow: "auto", border: 1 }}>
-              {userOrgUnitsFetched && (
-                <OrganisationUnitTree
-                  roots={data.me.organisationUnits.map((ou) => ou.id)}
-                  onChange={handleOrgUnitChange}
-                  selectable
-                  filterable
-                  disableSelection={false}
-                  selected={dataSetOrgUnitsFetched}
-                />
-              )}
-              {!userOrgUnitsFetched && <OrganisationUnitTreeRootLoading />}
-            </Grid>
-            <Grid size={4} sx={{ height: 300, overflow: "auto" }}>
-              {/* A ui to show selected additions, deletions count, dataset selected and a buttin to save and mutate data */}
-              <Paper elevation={3} sx={{ padding: 2, height: "99%" }}>
-                <Typography variant="h6" gutterBottom>
-                  Dataset: {selectedDataSetName || "None selected"}
-                </Typography>
-                <Typography variant="body1" gutterBottom>
-                  Organisation Units Selected: {dataSetOrgUnitsFetched.length}
-                </Typography>
-                <Typography variant="body1" gutterBottom color="green">
-                  Additions: {additions.length}
-                </Typography>
-                <Typography variant="body1" gutterBottom color="red">
-                  Deletions: {deletions.length}
-                </Typography>
-                <Button
-                  primary
-                  disabled={additions.length === 0 && deletions.length === 0}
-                  onClick={() => {
-                    // Handle save action here
-                    console.log("Saving changes...", { additions, deletions });
-                    // After saving, clear the additions and deletions
-                    setAdditions([]);
-                    setDeletions([]);
-                  }}
-                >
-                  Save Changes
-                </Button>
-              </Paper>
-            </Grid>
-            {/* <Grid size={4}></Grid> */}
-          </Grid>
-        </>
-      )}
-    </BrowserRouter>
-  );
+            {error && (
+                <Box sx={{ mt: 2 }}>
+                    <Typography color="error">Error: {error.message}</Typography>
+                </Box>
+            )}
+        </Box>
+    );
 };
 
 export default OuLinker;
